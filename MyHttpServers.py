@@ -14,6 +14,41 @@ MAX_IMG_SIZE = (64, 64)
 ########################################################################################
 # ---------------------------------- via socket lib ------------------------------------
 ########################################################################################
+class SimpleHttpRequest():
+    def __init__(self, input_str, verbose):
+        lines = input_str.split('\r\n')
+        if verbose:
+            print("-------------------------------")
+            for line in lines:
+                print(line)
+            print("-------------------------------")
+
+        self.type = lines[0].split(' ')[0]
+        self.dest = lines[0].split(' ')[1]
+        self.http_v = lines[0].split(' ')[2]
+
+        self.headers = []
+        for line in lines[1:]:
+            if line != '':
+                line_args = line.split(': ')
+                self.headers.append(
+                    {
+                        'key': line_args[0],
+                        'value': line_args[1]
+                    }
+                )
+
+        if str(self) != input_str:
+            raise Exception('can not to reapir input str from parsed req')
+
+    def __str__(self):
+        res = "%s %s %s\r\n" % (self.type, self.dest, self.http_v)
+        for header in self.headers:
+            res += "%s: %s\r\n" % (header['key'], header['value'])
+        res += '\r\n'
+        return res
+
+
 class SimpleHttpServer():
     def __init__(self, TCP_IP='', TCP_PORT=8080):
         self.BUFFER_SIZE = 1024  # Normally 1024, but we want fast response
@@ -21,7 +56,7 @@ class SimpleHttpServer():
         self.s.bind((TCP_IP, TCP_PORT))
         self.s.listen(1)
 
-    def start_server(self):
+    def serve_forever(self):
 
         while True:
             conn, addr = self.s.accept()
@@ -33,16 +68,20 @@ class SimpleHttpServer():
                 if not data:
                     is_okay = False
                 else:
-                    lines = data.decode().split('\r\n')
-
-                    print("-------------------------------")
-                    for line in lines:
-                        print(line)
-                    print("-------------------------------")
-
+                    self.request = SimpleHttpRequest(input_str=data.decode(), verbose=True)
+                    self.process_request()
                     conn.send(data)  # echo
 
             conn.close()
+
+    def process_request(self):
+        if self.request.type == 'GET':
+            self.do_GET()
+        else:
+            raise Exception('Request.type = %s does not supports now' % self.request.type)
+
+    def do_GET(self):
+        raise Exception('do_GET empty')
 
 
 ########################################################################################

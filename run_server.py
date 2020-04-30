@@ -1,9 +1,11 @@
-from MyHttpServers import HttpProxyImgCompressor
+from MyHttpServers import HttpProxyImgCompressor, SimpleHttpServer
 
 import argparse
 from http.server import HTTPServer
 import signal
 import sys
+
+MODE = 'not socket'
 
 
 def signal_handler(sig, frame):
@@ -18,16 +20,21 @@ def main():
     args = parser.parse_args()
     port = args.port if args.port is not None else 8080
 
-    # running server
-    print("Starting HttpProxyImgCompressor server...")
-
     signal.signal(signal.SIGINT, signal_handler)
     print("SIGINT handler created")
 
-    serv = HTTPServer(('', port), HttpProxyImgCompressor)
-    print("Requests expected on %d port\nRunning server..." % port)
-    print("-------------------------------------")
+    if MODE.lower() == 'socket':
+        serv = SimpleHttpServer()
+        print("Requests expected on %d port\nRunning SimpleHttpServer server..." % port)
+        print("-------------------------------------")
 
+    else:
+        print('')
+        serv = HTTPServer(('', port), HttpProxyImgCompressor)
+        print("Requests expected on %d port\nRunning HttpProxyImgCompressor server..." % port)
+        print("-------------------------------------")
+
+    # running server
     serv.serve_forever()
 
 
