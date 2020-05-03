@@ -5,7 +5,7 @@ from http.server import HTTPServer
 import signal
 import sys
 
-MODE = 'ssocket'
+MODE = 'socket'
 
 
 def signal_handler(sig, frame):

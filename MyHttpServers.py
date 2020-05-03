@@ -5,9 +5,9 @@ from io import BytesIO
 from PIL import Image
 from http.server import BaseHTTPRequestHandler
 
-########################################################################################
-# ---------------------------------- server params -------------------------------------
-########################################################################################
+########################################################################################################################
+# ------------------------------------------ server params -------------------------------------------------------------
+########################################################################################################################
 CLIENT_LIST = ('127.0.0.1', '192.168.1.70')
 MAX_IMG_SIZE = (64, 64)
 
@@ -16,13 +16,14 @@ def whoami():
     return inspect.stack()[1][3]
 
 
-########################################################################################
-# ---------------------------------- via socket lib ------------------------------------
-########################################################################################
+########################################################################################################################
+# ------------------------------------------------ via socket lib ------------------------------------------------------
+########################################################################################################################
 class SimpleHttpServer():
     def __init__(self, TCP_IP='', TCP_PORT=8080, BUFFER_SIZE=1024):
         self.BUFFER_SIZE = BUFFER_SIZE  # Normally 1024, but we want fast response
         self.s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+        self.s.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
         self.s.bind((TCP_IP, TCP_PORT))
         self.s.listen(1)
 
@@ -72,11 +73,11 @@ class SimpleHttpServer():
         # deal with async socket and implement finite automata to handle incoming data
 
         prev_timeout = sock.gettimeout()
+        rdata = []
         try:
+            self.verbose_print(function=whoami(), message='setting timeout in text read')
             sock.settimeout(0.01)
-
-            rdata = []
-
+            self.verbose_print(function=whoami(), message='timeout seted in text read')
             # ---------------------------------- read headers ----------------------------------
             while True:
                 try:
@@ -96,15 +97,16 @@ class SimpleHttpServer():
 
             # unreachable
         finally:
+            self.verbose_print(function=whoami(), message='unreachable timeout on socket while data parsing?')
             sock.settimeout(prev_timeout)
 
     def recv_data(self, sock):
-        # prev_timeout = sock.gettimeout()
+        prev_timeout = sock.gettimeout()
         data = b''
         try:
-            self.verbose_print(function=whoami(), message='setting timeout')
+            self.verbose_print(function=whoami(), message='setting timeout in data read')
             sock.settimeout(0.01)
-            self.verbose_print(function=whoami(), message='timeout seted')
+            self.verbose_print(function=whoami(), message='timeout seted in data read')
             # ---------------------------------- read headers ----------------------------------
             while True:
                 try:
@@ -120,7 +122,8 @@ class SimpleHttpServer():
 
             # unreachable
         finally:
-            self.verbose_print(function=whoami(), message='timeout on socket while data parsing?')
+            self.verbose_print(function=whoami(), message='unreachable timeout on socket while data parsing?')
+            sock.settimeout(prev_timeout)
             return data
 
     ###############################################################################
@@ -136,10 +139,10 @@ class SimpleHttpServer():
         self.conn.send(('%s %d %s' % ('HTTP/1.1', code, 'OK')).encode())
 
     def send_header(self, keyword, value):
-        self.conn.send('%s: %s\n'.encode() % (keyword, value))
+        self.conn.send(('%s: %s\n' % (keyword, value)).encode())
 
     def end_headers(self):
-        self.conn.send('\r\n\r\n'.encode())
+        self.conn.send('\r\n'.encode())
 
     def process_request(self):
         if self.type == 'GET':
@@ -160,14 +163,12 @@ class SimpleHttpServer():
             #     print('GET: connection closed')
             self.conn.close()
             print('GET: connection closed')
-            print('________________________________________________\n\n\n')
+            print('_____________________________________________________________________________________________\n\n\n')
 
         elif self.type == 'CONNECT':
             self.send_response(200)
             print('CONNECT processed, keeping connection...')
-            print('________________________________________________\n\n\n')
-            self.end_headers()
-            self.conn.send(self.data)
+            print('_____________________________________________________________________________________________\n\n\n')
 
         else:
             raise Exception('Undefined method %s' % self.type)
@@ -176,34 +177,35 @@ class SimpleHttpServer():
     # ----------------------- MAIN STUFF --------------------------------------
     ###############################################################################
     def serve_forever(self):
-
-        parse_only_data = False
         while True:
-            self.conn, (self.client_address, self.client_port) = self.s.accept()
-            print('\n\n\n_________________________________________________________')
+            self.conn, self.client_address = self.s.accept()
+            print('\n\n\n_____________________________________________________________________________________________')
             self.verbose_print(function=whoami(),
-                               message='new connection %s: %s' % (self.client_address, self.client_port))
+                               message='new connection %s: %s' % (self.client_address[0], self.client_address[1]))
 
             is_okay = True
             while is_okay:
-                # if not parse_only_data:
                 self.rdata = self.recv_text(self.conn)
-                self.data = self.recv_data(self.conn)
-
-                # parse_only_data = True if self.data == b'' else False
-
                 if not self.rdata:
                     is_okay = False
                     self.verbose_print(function=whoami(), message='rdata is not, exiting...')
                 else:
                     self.parst_http(input_str=self.rdata, verbose=True)
+
+                    if 'Content-Length' in self.headers.keys():
+                        self.verbose_print(function=whoami(),
+                                           message='Content-Length = %s found' % self.headers['Content-Length'])
+                        self.data = self.recv_data(self.conn)
+                    else:
+                        self.verbose_print(function=whoami(), message='no Content-Length key in headers')
+
                     self.process_request()
                     is_okay = False
 
 
-########################################################################################
-# ---------------------------------- server via http lib -------------------------------
-########################################################################################
+########################################################################################################################
+# ------------------------------------------- server via http lib ------------------------------------------------------
+########################################################################################################################
 class HttpProxyImgCompressor(BaseHTTPRequestHandler):
     def do_GET(self):
         response_content = proxy_common_move(self)
@@ -227,9 +229,9 @@ class HttpProxyImgCompressor(BaseHTTPRequestHandler):
         self.wfile.write("<h1>Sorry bro<h1>")
 
 
-##########################################################################
-# ------------------------ COMMON ----------------------------------------
-##########################################################################
+########################################################################################################################
+# ----------------------------------------------- COMMON ---------------------------------------------------------------
+########################################################################################################################
 def proxy_common_move(req_handler):
     def image_to_byte_array(image):
         imgByteArr = BytesIO()
@@ -259,6 +261,8 @@ def proxy_common_move(req_handler):
                         print("img compressed")
                         img.thumbnail(MAX_IMG_SIZE)
                         changed_resp_content = image_to_byte_array(img)
+            elif keyword.lower() in ('content-length',):
+                req_handler.send_header(keyword, value)
         req_handler.end_headers()
         return changed_resp_content
 
