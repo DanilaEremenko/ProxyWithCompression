@@ -5,7 +5,7 @@ from http.server import HTTPServer
 import signal
 import sys
 
-MODE = 'not socket'
+MODE = 'ssocket'
 
 
 def signal_handler(sig, frame):
@@ -24,7 +24,7 @@ def main():
     print("SIGINT handler created")
 
     if MODE.lower() == 'socket':
-        serv = SimpleHttpServer()
+        serv = SimpleHttpServer(BUFFER_SIZE=2 ** 16)
         print("Requests expected on %d port\nRunning SimpleHttpServer server..." % port)
         print("-------------------------------------")
 
