@@ -1,9 +1,9 @@
-from MyHttpServers import HttpProxyImgCompressor, SimpleHttpServer
-
 import argparse
-from http.server import HTTPServer
 import signal
 import sys
+from http.server import HTTPServer
+from default_http_proxy import HttpProxyImgCompressor
+from my_http_proxy import SimpleHttpServer
 
 MODE = 'socket'
 
