@@ -54,6 +54,8 @@ def parse_http(input_str, verbose):
         print("---------------------------------------")
 
     path = lines[0]
+    if path == '':
+        raise Exception('empty path in parse http')
 
     headers = {}
     for line in lines[1:]:
@@ -61,10 +63,10 @@ def parse_http(input_str, verbose):
             line_args = line.split(': ')
             headers[line_args[0]] = line_args[1]
 
-    if http_resp_to_str() != input_str:
-        raise Exception('can not to reapir input str from parsed req')
-    else:
-        verbose_print(function=whoami(), message='body repaired from fields, test passed')
+    # if http_resp_to_str() != input_str:
+    #     raise Exception('can not to repair input str from parsed req')
+    # else:
+    #     verbose_print(function=whoami(), message='body repaired from fields, test passed')
     return path, headers
 
 
@@ -81,6 +83,8 @@ def recv_all_data(sock):
             while True:
                 next_byte = sock.recv(1)
                 full_data += next_byte
+                if len(full_data) == 0:
+                    break
                 if full_data[-1] == 10 \
                         and full_data[-2] == 13 \
                         and full_data[-3] == 10 \
@@ -88,10 +92,12 @@ def recv_all_data(sock):
                     break
             verbose_print(whoami(), 'all body readed, parsing http')
             path, headers = parse_http(input_str=full_data.decode(), verbose=True)
+            data = b''
             if 'Content-Length' in headers.keys():
-                data = sock.recv(int(headers['Content-Length']))
-            else:
-                data = b''
+                while int(headers['Content-Length']) > len(data):
+                    verbose_print(whoami(), 'CONTENT-LEN = %s,DATA.LEN = %d' % (headers['Content-Length'], len(data)))
+                    data += sock.recv(int(headers['Content-Length']))
+
             return path, headers, data
         except socket.timeout:
             return None, None, None
@@ -162,12 +168,12 @@ class SimpleHttpServer():
         self.conn.send('\r\n'.encode())
 
     def process_request(self):
-        if self.type == 'GET' or self.type == 'POST':
+        if self.type == 'GET':
             print('GET: getting response content from request processing function')
-            response_content = proxy_common_move(req_handler=self, get_method=requests.get)
+            resp_content = proxy_common_move(req_handler=self, get_method=simple_get)
             print('GET: response content getted')
             try:
-                self.conn.send(response_content)
+                self.conn.send(resp_content)
                 print('GET: response content sended to proxy client')
             except:
                 print('GET: can not send response content to proxy client')

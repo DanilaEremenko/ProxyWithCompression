@@ -24,10 +24,10 @@ def proxy_common_move(req_handler, get_method):
         print('requested resource %s' % req_res)
         resp = get_method(req_res)
 
-        changed_resp_content = resp.content
+        changed_content = resp.content
+        changed_content_length = None
 
         req_handler.send_response(resp.status_code)
-
         for keyword, value in dict(resp.headers).items():
             # print("%s:%s" % (keyword, value))
             if keyword.lower() == 'content-type':
@@ -43,11 +43,15 @@ def proxy_common_move(req_handler, get_method):
                             print("img compressed")
                         except ZeroDivisionError:
                             pass
-                        changed_resp_content = image_to_byte_array(img)
+                        changed_content = image_to_byte_array(img)
+                        changed_content_length = len(image_to_byte_array(img))
             elif keyword.lower() in ('content-length',):
-                req_handler.send_header(keyword, value)
+                if changed_content_length is not None:
+                    req_handler.send_header(keyword, str(changed_content_length))
+                else:
+                    req_handler.send_header(keyword, value)
         req_handler.end_headers()
-        return changed_resp_content
+        return changed_content
 
     else:
         return None
