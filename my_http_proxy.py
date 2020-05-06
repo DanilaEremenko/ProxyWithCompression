@@ -159,13 +159,14 @@ class SimpleHttpServer():
     # ----------------------- api emulating part -----------------------------------
     ###############################################################################
     def send_response(self, code):
-        self.conn.send(('%s %d %s\r\n' % ('HTTP/1.0', code, 'OK')).encode())
+        self._body += ('%s %d %s\r\n' % ('HTTP/1.0', code, 'OK'))
 
     def send_header(self, keyword, value):
-        self.conn.send(('%s: %s\r\n' % (keyword, value)).encode())
+        self._body += ('%s: %s\r\n' % (keyword, value))
 
     def end_headers(self):
-        self.conn.send('\r\n'.encode())
+        verbose_print(whoami(), 'sending full body')
+        self.conn.send((self._body + '\r\n').encode())
 
     def process_request(self):
         if self.type == 'GET':
@@ -198,6 +199,7 @@ class SimpleHttpServer():
     def serve_forever(self):
         while True:
             self.conn, self.client_address = self.s.accept()
+            self._body = ''
             print('\n\n\n_____________________________________________________________________________________________')
             verbose_print(function=whoami(),
                           message='new connection %s: %s' % (self.client_address[0], self.client_address[1]))

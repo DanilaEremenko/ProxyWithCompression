@@ -20,6 +20,7 @@ class HttpProxyImgCompressor(BaseHTTPRequestHandler):
     def do_CONNECT(self):
         if self.client_address[0] in CLIENT_LIST:
             self.send_response(200)
+            self.end_headers()
             print('localhost connected')
 
     def _send_bad_client_response(self):
