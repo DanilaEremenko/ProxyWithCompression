@@ -38,8 +38,11 @@ def proxy_common_move(req_handler, get_method):
                 if value.lower() == 'image/png':
                     img = Image.open(BytesIO(resp.content))
                     if img.size[0] > MAX_IMG_SIZE[0] or img.size[1] > MAX_IMG_SIZE[1]:
-                        print("img compressed")
-                        img.thumbnail(MAX_IMG_SIZE)
+                        try:
+                            img.thumbnail(MAX_IMG_SIZE)
+                            print("img compressed")
+                        except ZeroDivisionError:
+                            pass
                         changed_resp_content = image_to_byte_array(img)
             elif keyword.lower() in ('content-length',):
                 req_handler.send_header(keyword, value)

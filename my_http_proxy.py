@@ -17,134 +17,152 @@ def whoami():
 
 
 ########################################################################################################################
+# -------------------------------------- stub classes ------------------------------------------------------------------
+########################################################################################################################
+class SimpleResponse():
+    def __init__(self, path, headers, data):
+        self.path = path
+        self.http_v = path.split(' ')[0]
+        self.status_code = int(path.split(' ')[1])
+        self.status_str = path.split(' ')[2]
+        self.headers = headers
+        self.content = data
+
+
+########################################################################################################################
+# -------------------------------------- socket stuff ------------------------------------------------------------------
+########################################################################################################################
+def parse_http(input_str, verbose):
+    def http_resp_to_str():
+        res = "%s\r\n" % (path)
+        for key, value in headers.items():
+            res += "%s: %s\r\n" % (key, value)
+        res += '\r\n'
+        return res
+
+    lines = input_str.split('\r\n')
+    verbose_print(function=whoami(), message='parsing http body')
+    if verbose:
+
+        print("---------------------------------------")
+        print("----------- HTTP ----------------------")
+        print("---------------------------------------")
+        for line in lines:
+            print(line)
+        print("---------------------------------------")
+        print("----------- HTTP END ------------------")
+        print("---------------------------------------")
+
+    path = lines[0]
+
+    headers = {}
+    for line in lines[1:]:
+        if line != '':
+            line_args = line.split(': ')
+            headers[line_args[0]] = line_args[1]
+
+    if http_resp_to_str() != input_str:
+        raise Exception('can not to reapir input str from parsed req')
+    else:
+        verbose_print(function=whoami(), message='body repaired from fields, test passed')
+    return path, headers
+
+
+def recv_all_data(sock):
+    prev_timeout = sock.gettimeout()
+    full_data = b''
+    try:
+        verbose_print(function=whoami(), message='setting timeout in data read')
+        sock.settimeout(5)
+        verbose_print(function=whoami(), message='timeout seted in data read')
+        # ---------------------------------- read headers ----------------------------------
+        path = headers = data = None
+        try:
+            while True:
+                next_byte = sock.recv(1)
+                full_data += next_byte
+                if full_data[-1] == 10 \
+                        and full_data[-2] == 13 \
+                        and full_data[-3] == 10 \
+                        and full_data[-4] == 13:
+                    break
+            verbose_print(whoami(), 'all body readed, parsing http')
+            path, headers = parse_http(input_str=full_data.decode(), verbose=True)
+            if 'Content-Length' in headers.keys():
+                data = sock.recv(int(headers['Content-Length']))
+            else:
+                data = b''
+            return path, headers, data
+        except socket.timeout:
+            return None, None, None
+
+
+    # unreachable
+    finally:
+        verbose_print(function=whoami(), message='final block called')
+        sock.settimeout(prev_timeout)
+
+
+########################################################################################################################
+# ------------------------------------------------ get request sender --------------------------------------------------
+########################################################################################################################
+def headers_to_str(headers):
+    return ''.join(map(lambda key: "%s: %s\r\n" % (key, headers[key]), headers))
+
+
+def simple_get(url):
+    for i in range(5):
+        verbose_print(whoami(), '%d try' % i)
+        s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+        s.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+        protocol = url[:4]
+        url_req = '/'.join(url[7:].split('/')[1:])
+        address = url[7:].split('/')[0]
+
+        s.connect((address, 80))
+        default_headers = {
+            'Host': str(address),
+            'User-Agent': 'python',
+            'Accept-Encoding': 'gzip, deflate',
+            'Accept': '*/*',
+            'Connection': 'keep-alive'
+        }
+
+        s.send(('GET /%s HTTP/1.0\r\n%s\r\n' % (url_req, headers_to_str(default_headers))).encode())
+
+        path, headers, data = recv_all_data(sock=s)
+
+        if headers == None:
+            verbose_print(whoami(), 'bad response got')
+            continue
+
+        return SimpleResponse(path, headers, data)
+
+
+########################################################################################################################
 # ------------------------------------------------ server --------------------------------------------------------------
 ########################################################################################################################
 class SimpleHttpServer():
-    def __init__(self, TCP_IP='', TCP_PORT=8080, BUFFER_SIZE=1024):
-        self.BUFFER_SIZE = BUFFER_SIZE  # Normally 1024, but we want fast response
+    def __init__(self, TCP_IP='', TCP_PORT=8080):
         self.s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
         self.s.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
         self.s.bind((TCP_IP, TCP_PORT))
         self.s.listen(1)
 
     ###############################################################################
-    # ----------------------- socket stuff --------------------------------------
-    ###############################################################################
-    def recv_text(self, sock):
-        r'''Receive everything from `sock`, until timeout occurs, meaning sender
-        is exhausted, return result as string.'''
-
-        # dirty hack to simplify this stuff - you should really use zero timeout,
-        # deal with async socket and implement finite automata to handle incoming data
-
-        prev_timeout = sock.gettimeout()
-        rdata = []
-        try:
-            verbose_print(function=whoami(), message='setting timeout in text read')
-            sock.settimeout(0.01)
-            verbose_print(function=whoami(), message='timeout seted in text read')
-            # ---------------------------------- read headers ----------------------------------
-            while True:
-                try:
-                    verbose_print(function=whoami(), message='reading text chunk')
-                    rdata.append(sock.recv(self.BUFFER_SIZE).decode())
-                    verbose_print(function=whoami(), message='text chunk readed')
-                    if rdata[0][-4:] == '\r\n\r\n':
-                        verbose_print(function=whoami(), message='all text readed, next go to the data reading')
-                        return ''.join(rdata)
-                except socket.timeout:
-                    if len(rdata) == 0:
-                        verbose_print(function=whoami(), message='empty rdata array got')
-                        return None
-                    else:
-                        verbose_print(function=whoami(), message='rdata returned')
-                        return ''.join(rdata)
-
-            # unreachable
-        finally:
-            verbose_print(function=whoami(), message='unreachable timeout on socket while data parsing?')
-            sock.settimeout(prev_timeout)
-
-    def recv_data(self, sock):
-        prev_timeout = sock.gettimeout()
-        data = b''
-        try:
-            verbose_print(function=whoami(), message='setting timeout in data read')
-            sock.settimeout(0.01)
-            verbose_print(function=whoami(), message='timeout seted in data read')
-            # ---------------------------------- read headers ----------------------------------
-            while True:
-                try:
-                    verbose_print(function=whoami(), message='reading data chunk')
-                    new_data = sock.recv(self.BUFFER_SIZE)
-                    verbose_print(function=whoami(), message='data chunk readed')
-                    data += new_data
-                    verbose_print(function=whoami(), message='data chunks joined')
-
-                except socket.timeout:
-                    verbose_print(function=whoami(), message='data returned')
-                    return data
-
-            # unreachable
-        finally:
-            verbose_print(function=whoami(), message='unreachable timeout on socket while data parsing?')
-            sock.settimeout(prev_timeout)
-            return data
-
-    ###############################################################################
-    # ----------------------- parsing stuff --------------------------------------
-    ###############################################################################
-    def parse_http_req(self, input_str, verbose):
-        lines = input_str.split('\r\n')
-        verbose_print(function=whoami(), message='parsing http body')
-        if verbose:
-            print("---------------------------------------")
-            print("------------- REQUEST -----------------")
-            print("---------------------------------------")
-
-            for line in lines:
-                print(line)
-            print("---------------------------------------")
-            print("------------- END REQUEST -------------")
-            print("---------------------------------------")
-
-        self.path = lines[0]
-        self.type = lines[0].split(' ')[0]
-        self.path = lines[0].split(' ')[1]
-        self.http_v = lines[0].split(' ')[2]
-
-        self.headers = {}
-        for line in lines[1:]:
-            if line != '':
-                line_args = line.split(': ')
-                self.headers[line_args[0]] = line_args[1]
-
-        if self.http_req_to_str() != input_str:
-            raise Exception('can not to reapir input str from parsed req')
-        else:
-            verbose_print(function=whoami(), message='body repaired from fields, test passed')
-
-    def http_req_to_str(self):
-        res = "%s %s %s\r\n" % (self.type, self.path, self.http_v)
-        for key, value in self.headers.items():
-            res += "%s: %s\r\n" % (key, value)
-        res += '\r\n'
-        return res
-
-    ###############################################################################
     # ----------------------- api emulating part -----------------------------------
     ###############################################################################
     def send_response(self, code):
-        self.conn.send(('%s %d %s' % ('HTTP/1.1', code, 'OK')).encode())
+        self.conn.send(('%s %d %s\r\n' % ('HTTP/1.0', code, 'OK')).encode())
 
     def send_header(self, keyword, value):
-        self.conn.send(('%s: %s\n' % (keyword, value)).encode())
+        self.conn.send(('%s: %s\r\n' % (keyword, value)).encode())
 
     def end_headers(self):
         self.conn.send('\r\n'.encode())
 
     def process_request(self):
-        if self.type == 'GET':
+        if self.type == 'GET' or self.type == 'POST':
             print('GET: getting response content from request processing function')
             response_content = proxy_common_move(req_handler=self, get_method=requests.get)
             print('GET: response content getted')
@@ -155,17 +173,13 @@ class SimpleHttpServer():
                 print('GET: can not send response content to proxy client')
 
             print('GET: proceesed, exiting...')
-            # if self.headers['Proxy-Connection'] == 'keep-alive':
-            #     print('GET: connection keeped')
-            # else:
-            #     self.conn.close()
-            #     print('GET: connection closed')
             self.conn.close()
             print('GET: connection closed')
             print('_____________________________________________________________________________________________\n\n\n')
 
         elif self.type == 'CONNECT':
             self.send_response(200)
+            self.end_headers()
             print('CONNECT processed, keeping connection...')
             print('_____________________________________________________________________________________________\n\n\n')
 
@@ -184,19 +198,14 @@ class SimpleHttpServer():
 
             is_okay = True
             while is_okay:
-                self.rdata = self.recv_text(self.conn)
-                if not self.rdata:
+                path, self.headers, self.data = recv_all_data(sock=self.conn)
+
+                if self.headers is None:
                     is_okay = False
-                    verbose_print(function=whoami(), message='rdata is not, exiting...')
+                    verbose_print(function=whoami(), message='bad request got')
                 else:
-                    self.parse_http_req(input_str=self.rdata, verbose=True)
-
-                    if 'Content-Length' in self.headers.keys():
-                        verbose_print(function=whoami(),
-                                      message='Content-Length = %s found' % self.headers['Content-Length'])
-                        self.data = self.recv_data(self.conn)
-                    else:
-                        verbose_print(function=whoami(), message='no Content-Length key in headers')
-
+                    self.type = path.split(' ')[0]
+                    self.path = path.split(' ')[1]
+                    self.http_v = path.split(' ')[2]
                     self.process_request()
                     is_okay = False

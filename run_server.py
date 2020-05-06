@@ -24,7 +24,7 @@ def main():
     print("SIGINT handler created")
 
     if MODE.lower() == 'socket':
-        serv = SimpleHttpServer(BUFFER_SIZE=2 ** 16)
+        serv = SimpleHttpServer(TCP_PORT=port)
         print("Requests expected on %d port\nRunning SimpleHttpServer server..." % port)
         print("-------------------------------------")
 
